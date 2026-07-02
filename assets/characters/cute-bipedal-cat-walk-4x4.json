@@ -1,0 +1,171 @@
+﻿{
+    "id":  "cute-bipedal-cat-walk-4x4",
+    "name":  "Cute Bipedal Cat Walk",
+    "image":  "cute-bipedal-cat-walk-4x4.png",
+    "frameWidth":  48,
+    "frameHeight":  64,
+    "columns":  4,
+    "rows":  4,
+    "rowOrder":  [
+                     "down",
+                     "up",
+                     "left",
+                     "right"
+                 ],
+    "animations":  {
+                       "down":  [
+                                    "down_0",
+                                    "down_1",
+                                    "down_2",
+                                    "down_3"
+                                ],
+                       "up":  [
+                                  "up_0",
+                                  "up_1",
+                                  "up_2",
+                                  "up_3"
+                              ],
+                       "left":  [
+                                    "left_0",
+                                    "left_1",
+                                    "left_2",
+                                    "left_3"
+                                ],
+                       "right":  [
+                                     "right_0",
+                                     "right_1",
+                                     "right_2",
+                                     "right_3"
+                                 ]
+                   },
+    "frames":  {
+                   "down_0":  {
+                                  "frame":  {
+                                                "x":  0,
+                                                "y":  0,
+                                                "w":  48,
+                                                "h":  64
+                                            }
+                              },
+                   "down_1":  {
+                                  "frame":  {
+                                                "x":  48,
+                                                "y":  0,
+                                                "w":  48,
+                                                "h":  64
+                                            }
+                              },
+                   "down_2":  {
+                                  "frame":  {
+                                                "x":  96,
+                                                "y":  0,
+                                                "w":  48,
+                                                "h":  64
+                                            }
+                              },
+                   "down_3":  {
+                                  "frame":  {
+                                                "x":  144,
+                                                "y":  0,
+                                                "w":  48,
+                                                "h":  64
+                                            }
+                              },
+                   "up_0":  {
+                                "frame":  {
+                                              "x":  0,
+                                              "y":  64,
+                                              "w":  48,
+                                              "h":  64
+                                          }
+                            },
+                   "up_1":  {
+                                "frame":  {
+                                              "x":  48,
+                                              "y":  64,
+                                              "w":  48,
+                                              "h":  64
+                                          }
+                            },
+                   "up_2":  {
+                                "frame":  {
+                                              "x":  96,
+                                              "y":  64,
+                                              "w":  48,
+                                              "h":  64
+                                          }
+                            },
+                   "up_3":  {
+                                "frame":  {
+                                              "x":  144,
+                                              "y":  64,
+                                              "w":  48,
+                                              "h":  64
+                                          }
+                            },
+                   "left_0":  {
+                                  "frame":  {
+                                                "x":  0,
+                                                "y":  128,
+                                                "w":  48,
+                                                "h":  64
+                                            }
+                              },
+                   "left_1":  {
+                                  "frame":  {
+                                                "x":  48,
+                                                "y":  128,
+                                                "w":  48,
+                                                "h":  64
+                                            }
+                              },
+                   "left_2":  {
+                                  "frame":  {
+                                                "x":  96,
+                                                "y":  128,
+                                                "w":  48,
+                                                "h":  64
+                                            }
+                              },
+                   "left_3":  {
+                                  "frame":  {
+                                                "x":  144,
+                                                "y":  128,
+                                                "w":  48,
+                                                "h":  64
+                                            }
+                              },
+                   "right_0":  {
+                                   "frame":  {
+                                                 "x":  0,
+                                                 "y":  192,
+                                                 "w":  48,
+                                                 "h":  64
+                                             }
+                               },
+                   "right_1":  {
+                                   "frame":  {
+                                                 "x":  48,
+                                                 "y":  192,
+                                                 "w":  48,
+                                                 "h":  64
+                                             }
+                               },
+                   "right_2":  {
+                                   "frame":  {
+                                                 "x":  96,
+                                                 "y":  192,
+                                                 "w":  48,
+                                                 "h":  64
+                                             }
+                               },
+                   "right_3":  {
+                                   "frame":  {
+                                                 "x":  144,
+                                                 "y":  192,
+                                                 "w":  48,
+                                                 "h":  64
+                                             }
+                               }
+               }
+}
