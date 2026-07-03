@@ -169,3 +169,31 @@ grid: 4x4
 atlas size: 192x256
 format: transparent PNG
 ```
+
+Example command:
+
+```powershell
+Add-Type -Path tools\process-generated-character-spritesheet.cs -ReferencedAssemblies System.Drawing
+[ProcessGeneratedCharacterSpritesheet]::Main(@(
+  "--input", "assets\raw\characters\cute-bipedal-fox-walk-source.png",
+  "--output", "assets\characters\cute-bipedal-fox-walk-4x4.png",
+  "--transparent", "assets\characters\cute-bipedal-fox-walk-4x4-transparent-source.png",
+  "--validation", "assets\characters\cute-bipedal-fox-walk-4x4-validation.png"
+))
+```
+
+If green chroma-key residue remains around the sprite, use a stronger matte:
+
+```powershell
+[ProcessGeneratedCharacterSpritesheet]::Main(@(
+  "--input", "assets\raw\characters\cute-bipedal-fox-walk-source.png",
+  "--output", "assets\characters\cute-bipedal-fox-walk-4x4.png",
+  "--transparent", "assets\characters\cute-bipedal-fox-walk-4x4-transparent-source.png",
+  "--validation", "assets\characters\cute-bipedal-fox-walk-4x4-validation.png",
+  "--transparent-threshold", "90",
+  "--opaque-threshold", "210",
+  "--despill", "true"
+))
+```
+
+Use the lowest thresholds that remove the residue cleanly. If the character contains green clothing, eyes, or accessories, regenerate with a non-green character palette or lower the thresholds.

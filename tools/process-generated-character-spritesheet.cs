@@ -21,6 +21,12 @@ public static class ProcessGeneratedCharacterSpritesheet
         public int MaxDrawW = 43;
         public int MaxDrawH = 60;
         public int MinArea = 500;
+        public int KeyR = 0;
+        public int KeyG = 255;
+        public int KeyB = 0;
+        public int TransparentThreshold = 70;
+        public int OpaqueThreshold = 180;
+        public bool Despill = true;
     }
 
     private sealed class SpriteBox
@@ -66,7 +72,7 @@ public static class ProcessGeneratedCharacterSpritesheet
     private static void Run(Config config)
     {
         using (var source = new Bitmap(config.Input))
-        using (var transparent = RemoveGreenBackground(source))
+        using (var transparent = RemoveGreenBackground(source, config))
         {
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(config.Output)));
             SaveIfSet(transparent, config.Transparent);
@@ -112,6 +118,12 @@ public static class ProcessGeneratedCharacterSpritesheet
                 case "--max-width": config.MaxDrawW = int.Parse(value); break;
                 case "--max-height": config.MaxDrawH = int.Parse(value); break;
                 case "--min-area": config.MinArea = int.Parse(value); break;
+                case "--key-r": config.KeyR = int.Parse(value); break;
+                case "--key-g": config.KeyG = int.Parse(value); break;
+                case "--key-b": config.KeyB = int.Parse(value); break;
+                case "--transparent-threshold": config.TransparentThreshold = int.Parse(value); break;
+                case "--opaque-threshold": config.OpaqueThreshold = int.Parse(value); break;
+                case "--despill": config.Despill = ParseBool(value); break;
                 default: throw new ArgumentException("Unknown option: " + key);
             }
         }
@@ -120,6 +132,8 @@ public static class ProcessGeneratedCharacterSpritesheet
             throw new ArgumentException("--input and --output are required.");
         if (!File.Exists(config.Input))
             throw new FileNotFoundException("Input file not found.", config.Input);
+        if (config.TransparentThreshold < 0 || config.OpaqueThreshold <= config.TransparentThreshold)
+            throw new ArgumentException("--opaque-threshold must be greater than --transparent-threshold.");
 
         return config;
     }
@@ -128,7 +142,17 @@ public static class ProcessGeneratedCharacterSpritesheet
     {
         return "Usage: process-generated-character-spritesheet.exe --input <source.png> --output <atlas.png> " +
             "[--transparent <transparent.png>] [--validation <validation.png>] [--cols 4] [--rows 4] " +
-            "[--frame-width 48] [--frame-height 64] [--max-width 43] [--max-height 60] [--min-area 500]";
+            "[--frame-width 48] [--frame-height 64] [--max-width 43] [--max-height 60] [--min-area 500] " +
+            "[--key-r 0] [--key-g 255] [--key-b 0] [--transparent-threshold 70] [--opaque-threshold 180] [--despill true]";
+    }
+
+    private static bool ParseBool(string value)
+    {
+        if (value.Equals("1") || value.Equals("true", StringComparison.OrdinalIgnoreCase) || value.Equals("yes", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (value.Equals("0") || value.Equals("false", StringComparison.OrdinalIgnoreCase) || value.Equals("no", StringComparison.OrdinalIgnoreCase))
+            return false;
+        throw new ArgumentException("Expected boolean value, got: " + value);
     }
 
     private static void SaveIfSet(Bitmap image, string path)
@@ -139,19 +163,64 @@ public static class ProcessGeneratedCharacterSpritesheet
         image.Save(path, ImageFormat.Png);
     }
 
-    private static Bitmap RemoveGreenBackground(Bitmap source)
+    private static Bitmap RemoveGreenBackground(Bitmap source, Config config)
     {
         var output = new Bitmap(source.Width, source.Height, PixelFormat.Format32bppArgb);
+        var key = Color.FromArgb(config.KeyR, config.KeyG, config.KeyB);
         for (var y = 0; y < source.Height; y++)
         {
             for (var x = 0; x < source.Width; x++)
             {
                 var color = source.GetPixel(x, y);
-                output.SetPixel(x, y, IsGreenKey(color) ? Color.Transparent : color);
+                output.SetPixel(x, y, RemoveKeyPixel(color, key, config));
             }
         }
 
         return output;
+    }
+
+    private static Color RemoveKeyPixel(Color color, Color key, Config config)
+    {
+        var distance = ColorDistance(color, key);
+        var greenDominance = color.G - Math.Max(color.R, color.B);
+
+        if (distance <= config.TransparentThreshold || IsStrongGreenKey(color))
+            return Color.Transparent;
+
+        var alpha = 255;
+        if (distance < config.OpaqueThreshold && greenDominance > 18)
+        {
+            var t = (distance - config.TransparentThreshold) / (double)(config.OpaqueThreshold - config.TransparentThreshold);
+            t = Math.Max(0, Math.Min(1, t));
+            alpha = (int)Math.Round(255 * t);
+        }
+
+        int r = color.R;
+        int g = color.G;
+        int b = color.B;
+        if (config.Despill && color.G > Math.Max(color.R, color.B))
+        {
+            var neutralG = Math.Max(color.R, color.B);
+            var spillAmount = alpha < 255 ? 1.0 : Math.Min(0.55, greenDominance / 255.0);
+            g = ClampByte((int)Math.Round(color.G + (neutralG - color.G) * spillAmount));
+        }
+
+        return Color.FromArgb(alpha, r, g, b);
+    }
+
+    private static double ColorDistance(Color a, Color b)
+    {
+        var dr = a.R - b.R;
+        var dg = a.G - b.G;
+        var db = a.B - b.B;
+        return Math.Sqrt(dr * dr + dg * dg + db * db);
+    }
+
+    private static int ClampByte(int value)
+    {
+        if (value < 0) return 0;
+        if (value > 255) return 255;
+        return value;
     }
 
     private static List<SpriteBox> FindSpriteBoxes(Bitmap image, int minArea)
@@ -281,7 +350,7 @@ public static class ProcessGeneratedCharacterSpritesheet
         }
     }
 
-    private static bool IsGreenKey(Color color)
+    private static bool IsStrongGreenKey(Color color)
     {
         return color.G > 145 && color.R < 95 && color.B < 130 && color.G > color.R * 1.8 && color.G > color.B * 1.25;
     }
