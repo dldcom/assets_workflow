@@ -180,6 +180,16 @@ dotnet run --project tools\dotnet\CharacterSpritesheet -- `
   --validation assets\characters\cute-bipedal-fox-walk-4x4-validation.png
 ```
 
+Linux command:
+
+```bash
+dotnet run --project tools/dotnet-linux/CharacterSpritesheet/CharacterSpritesheet.Linux.csproj -- \
+  --input assets/raw/characters/cute-bipedal-fox-walk-source.png \
+  --output assets/characters/cute-bipedal-fox-walk-4x4.png \
+  --transparent assets/characters/cute-bipedal-fox-walk-4x4-transparent-source.png \
+  --validation assets/characters/cute-bipedal-fox-walk-4x4-validation.png
+```
+
 If green chroma-key residue remains around the sprite, use a stronger matte:
 
 ```powershell

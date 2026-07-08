@@ -71,6 +71,17 @@ dotnet run --project tools\dotnet\ConsumptionItemGrid -- `
   --validation assets\consumptions\consumption-items-4x4-validation.png
 ```
 
+Linux command:
+
+```bash
+dotnet run --project tools/dotnet-linux/ConsumptionItemGrid/ConsumptionItemGrid.Linux.csproj -- \
+  --input assets/raw/consumptions/consumption-items-4x4-source.png \
+  --output-dir assets/consumptions \
+  --atlas assets/consumptions/consumption-items-4x4.png \
+  --transparent assets/consumptions/consumption-items-4x4-transparent-source.png \
+  --validation assets/consumptions/consumption-items-4x4-validation.png
+```
+
 For a separate style test, use a separate raw file and output directory:
 
 ```powershell
