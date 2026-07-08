@@ -24,6 +24,7 @@ public static class ProcessConsumptionItemGrid
         public int Padding = 8;
         public int CellInset = 10;
         public int MinArea = 180;
+        public int WarningMargin = 4;
         public int KeyR = 0;
         public int KeyG = 255;
         public int KeyB = 0;
@@ -39,6 +40,7 @@ public static class ProcessConsumptionItemGrid
         public Rectangle Cell;
         public Rectangle Bounds;
         public int Area;
+        public List<string> Warnings = new List<string>();
     }
 
     public static int Main(string[] args)
@@ -68,6 +70,7 @@ public static class ProcessConsumptionItemGrid
 
             var results = ExtractItems(transparent, config);
             SaveItems(transparent, results, config);
+            PrintWarnings(results);
 
             if (!string.IsNullOrWhiteSpace(config.Atlas))
                 SaveAtlas(config.OutputDir, results, config);
@@ -105,6 +108,7 @@ public static class ProcessConsumptionItemGrid
                 case "--padding": config.Padding = int.Parse(value); break;
                 case "--cell-inset": config.CellInset = int.Parse(value); break;
                 case "--min-area": config.MinArea = int.Parse(value); break;
+                case "--warning-margin": config.WarningMargin = int.Parse(value); break;
                 case "--key-r": config.KeyR = int.Parse(value); break;
                 case "--key-g": config.KeyG = int.Parse(value); break;
                 case "--key-b": config.KeyB = int.Parse(value); break;
@@ -139,7 +143,7 @@ public static class ProcessConsumptionItemGrid
         return "Usage: process-consumption-item-grid.exe --input <source.png> --output-dir <dir> " +
             "[--atlas <atlas.png>] [--transparent <transparent.png>] [--validation <validation.png>] " +
             "[--cols 4] [--rows 4] [--frame-width 128] [--frame-height 128] [--max-width 106] [--max-height 106] " +
-            "[--padding 8] [--cell-inset 10] [--min-area 180] [--key-r 0] [--key-g 255] [--key-b 0] " +
+            "[--padding 8] [--cell-inset 10] [--min-area 180] [--warning-margin 4] [--key-r 0] [--key-g 255] [--key-b 0] " +
             "[--transparent-threshold 70] [--opaque-threshold 185] [--despill true] [--names comma,separated,names]";
     }
 
@@ -260,7 +264,7 @@ public static class ProcessConsumptionItemGrid
                 var row = Math.Max(0, Math.Min(config.Rows - 1, centerY / cellH));
                 return row * config.Columns + col;
             })
-            .ToDictionary(group => group.Key, group => group.OrderByDescending(component => component.Area).First());
+            .ToDictionary(group => group.Key, group => group.OrderByDescending(component => component.Area).ToList());
         var index = 0;
 
         for (var row = 0; row < config.Rows; row++)
@@ -268,28 +272,57 @@ public static class ProcessConsumptionItemGrid
             for (var col = 0; col < config.Columns; col++)
             {
                 var cell = new Rectangle(col * cellW, row * cellH, cellW, cellH);
-                Component component;
-                if (!componentsByCell.TryGetValue(index, out component))
+                List<Component> components;
+                if (!componentsByCell.TryGetValue(index, out components) || components.Count == 0)
                     throw new InvalidOperationException("Item " + config.Names[index] + " was not found in its grid cell.");
 
+                var component = components[0];
                 var bounds = Rectangle.FromLTRB(
                     Math.Max(0, component.MinX - config.Padding),
                     Math.Max(0, component.MinY - config.Padding),
                     Math.Min(image.Width, component.MaxX + config.Padding + 1),
                     Math.Min(image.Height, component.MaxY + config.Padding + 1));
 
+                var warnings = GetWarnings(image, cell, bounds, components, config);
                 items.Add(new ItemResult
                 {
                     Name = config.Names[index],
                     Cell = cell,
                     Bounds = bounds,
-                    Area = component.Area
+                    Area = component.Area,
+                    Warnings = warnings
                 });
                 index++;
             }
         }
 
         return items;
+    }
+
+    private static List<string> GetWarnings(Bitmap image, Rectangle cell, Rectangle bounds, List<Component> components, Config config)
+    {
+        var warnings = new List<string>();
+        var margin = config.WarningMargin;
+        var spillMargin = Math.Max(config.WarningMargin, 18);
+
+        if (components.Count > 1)
+            warnings.Add("multiple-components");
+
+        if (bounds.Left <= margin || bounds.Top <= margin || bounds.Right >= image.Width - margin || bounds.Bottom >= image.Height - margin)
+            warnings.Add("image-edge");
+
+        if (bounds.Left < cell.Left - spillMargin || bounds.Top < cell.Top - spillMargin || bounds.Right > cell.Right + spillMargin || bounds.Bottom > cell.Bottom + spillMargin)
+            warnings.Add("cell-spill");
+
+        return warnings;
+    }
+
+    private static void PrintWarnings(List<ItemResult> results)
+    {
+        foreach (var item in results.Where(result => result.Warnings.Count > 0))
+        {
+            Console.Error.WriteLine("warning " + item.Name + ": " + string.Join(", ", item.Warnings.ToArray()));
+        }
     }
 
     private sealed class Component
@@ -325,45 +358,6 @@ public static class ProcessConsumptionItemGrid
         }
 
         return components;
-    }
-
-    private static Rectangle FindLargestComponentBounds(Bitmap image, Rectangle cell, int padding, int cellInset, out int area)
-    {
-        var scan = Rectangle.FromLTRB(
-            Math.Min(cell.Right, cell.Left + cellInset),
-            Math.Min(cell.Bottom, cell.Top + cellInset),
-            Math.Max(cell.Left, cell.Right - cellInset),
-            Math.Max(cell.Top, cell.Bottom - cellInset));
-        var visited = new bool[scan.Width, scan.Height];
-        Component largest = null;
-
-        for (var y = scan.Top; y < scan.Bottom; y++)
-        {
-            for (var x = scan.Left; x < scan.Right; x++)
-            {
-                var localX = x - scan.Left;
-                var localY = y - scan.Top;
-                if (visited[localX, localY] || image.GetPixel(x, y).A <= 18)
-                    continue;
-
-                var component = FloodFillComponent(image, scan, visited, x, y);
-                if (largest == null || component.Area > largest.Area)
-                    largest = component;
-            }
-        }
-
-        if (largest == null)
-        {
-            area = 0;
-            return Rectangle.Empty;
-        }
-
-        area = largest.Area;
-        return Rectangle.FromLTRB(
-            Math.Max(cell.Left, largest.MinX - padding),
-            Math.Max(cell.Top, largest.MinY - padding),
-            Math.Min(cell.Right, largest.MaxX + padding + 1),
-            Math.Min(cell.Bottom, largest.MaxY + padding + 1));
     }
 
     private static Component FloodFillComponent(Bitmap image, Rectangle scan, bool[,] visited, int startX, int startY)
@@ -478,8 +472,11 @@ public static class ProcessConsumptionItemGrid
         using (var graphics = Graphics.FromImage(validation))
         using (var cellPen = new Pen(Color.FromArgb(210, 30, 144, 255), 3))
         using (var boundsPen = new Pen(Color.FromArgb(230, 255, 70, 70), 4))
+        using (var warningPen = new Pen(Color.FromArgb(255, 255, 20, 20), 8))
         using (var font = new Font(FontFamily.GenericSansSerif, 22, FontStyle.Bold))
+        using (var warningFont = new Font(FontFamily.GenericSansSerif, 18, FontStyle.Bold))
         using (var brush = new SolidBrush(Color.FromArgb(235, 255, 255, 255)))
+        using (var warningBrush = new SolidBrush(Color.FromArgb(245, 255, 50, 50)))
         using (var shadow = new SolidBrush(Color.FromArgb(180, 0, 0, 0)))
         {
             graphics.Clear(Color.FromArgb(255, 0, 255, 0));
@@ -490,10 +487,19 @@ public static class ProcessConsumptionItemGrid
                 var item = results[i];
                 graphics.DrawRectangle(cellPen, item.Cell);
                 graphics.DrawRectangle(boundsPen, item.Bounds);
+                if (item.Warnings.Count > 0)
+                    graphics.DrawRectangle(warningPen, item.Cell);
                 var label = (i + 1) + " " + item.Name + " area " + item.Area;
                 var p = new PointF(item.Cell.Left + 8, item.Cell.Top + 8);
                 graphics.DrawString(label, font, shadow, p.X + 2, p.Y + 2);
                 graphics.DrawString(label, font, brush, p);
+                if (item.Warnings.Count > 0)
+                {
+                    var warning = "WARN " + string.Join(" ", item.Warnings.ToArray());
+                    var warningPoint = new PointF(item.Cell.Left + 8, item.Cell.Top + 38);
+                    graphics.DrawString(warning, warningFont, shadow, warningPoint.X + 2, warningPoint.Y + 2);
+                    graphics.DrawString(warning, warningFont, warningBrush, warningPoint);
+                }
             }
 
             validation.Save(path, ImageFormat.Png);

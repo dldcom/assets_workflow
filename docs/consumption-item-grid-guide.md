@@ -63,27 +63,23 @@ Constraints: The background must be one uniform #00ff00 color with no shadows, g
 Run from the `assets_workflow` root:
 
 ```powershell
-Add-Type -Path tools\process-consumption-item-grid.cs -ReferencedAssemblies System.Drawing
-[ProcessConsumptionItemGrid]::Main(@(
-  "--input", "assets\raw\consumptions\consumption-items-4x4-source.png",
-  "--output-dir", "assets\consumptions",
-  "--atlas", "assets\consumptions\consumption-items-4x4.png",
-  "--transparent", "assets\consumptions\consumption-items-4x4-transparent-source.png",
-  "--validation", "assets\consumptions\consumption-items-4x4-validation.png"
-))
+dotnet run --project tools\dotnet\ConsumptionItemGrid -- `
+  --input assets\raw\consumptions\consumption-items-4x4-source.png `
+  --output-dir assets\consumptions `
+  --atlas assets\consumptions\consumption-items-4x4.png `
+  --transparent assets\consumptions\consumption-items-4x4-transparent-source.png `
+  --validation assets\consumptions\consumption-items-4x4-validation.png
 ```
 
 For a separate style test, use a separate raw file and output directory:
 
 ```powershell
-Add-Type -Path tools\process-consumption-item-grid.cs -ReferencedAssemblies System.Drawing
-[ProcessConsumptionItemGrid]::Main(@(
-  "--input", "assets\raw\consumptions\consumption-items-pixel-4x4-source.png",
-  "--output-dir", "assets\consumptions-pixel",
-  "--atlas", "assets\consumptions-pixel\consumption-items-pixel-4x4.png",
-  "--transparent", "assets\consumptions-pixel\consumption-items-pixel-4x4-transparent-source.png",
-  "--validation", "assets\consumptions-pixel\consumption-items-pixel-4x4-validation.png"
-))
+dotnet run --project tools\dotnet\ConsumptionItemGrid -- `
+  --input assets\raw\consumptions\consumption-items-pixel-4x4-source.png `
+  --output-dir assets\consumptions-pixel `
+  --atlas assets\consumptions-pixel\consumption-items-pixel-4x4.png `
+  --transparent assets\consumptions-pixel\consumption-items-pixel-4x4-transparent-source.png `
+  --validation assets\consumptions-pixel\consumption-items-pixel-4x4-validation.png
 ```
 
 ## Tool Behavior

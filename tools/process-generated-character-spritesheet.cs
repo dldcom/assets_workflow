@@ -21,6 +21,7 @@ public static class ProcessGeneratedCharacterSpritesheet
         public int MaxDrawW = 43;
         public int MaxDrawH = 60;
         public int MinArea = 500;
+        public int WarningMargin = 4;
         public int KeyR = 0;
         public int KeyG = 255;
         public int KeyB = 0;
@@ -36,6 +37,7 @@ public static class ProcessGeneratedCharacterSpritesheet
         public int MaxX;
         public int MaxY;
         public int Area;
+        public List<string> Warnings = new List<string>();
 
         public int Width { get { return MaxX - MinX + 1; } }
         public int Height { get { return MaxY - MinY + 1; } }
@@ -78,8 +80,10 @@ public static class ProcessGeneratedCharacterSpritesheet
             SaveIfSet(transparent, config.Transparent);
 
             var expected = config.Rows * config.Columns;
-            var boxes = FindSpriteBoxes(transparent, config.MinArea)
+            var allBoxes = FindSpriteBoxes(transparent, config.MinArea)
                 .OrderByDescending(box => box.Area)
+                .ToList();
+            var boxes = allBoxes
                 .Take(expected)
                 .ToList();
 
@@ -87,6 +91,8 @@ public static class ProcessGeneratedCharacterSpritesheet
                 throw new InvalidOperationException("Expected " + expected + " sprite components, found " + boxes.Count + ".");
 
             var ordered = OrderByGrid(boxes, config.Columns, config.Rows);
+            AddWarnings(transparent, ordered, allBoxes, config);
+            PrintWarnings(ordered);
             if (!string.IsNullOrWhiteSpace(config.Validation))
                 SaveValidationImage(transparent, ordered, config.Validation);
             SaveAtlas(transparent, ordered, config.Output, config);
@@ -118,6 +124,7 @@ public static class ProcessGeneratedCharacterSpritesheet
                 case "--max-width": config.MaxDrawW = int.Parse(value); break;
                 case "--max-height": config.MaxDrawH = int.Parse(value); break;
                 case "--min-area": config.MinArea = int.Parse(value); break;
+                case "--warning-margin": config.WarningMargin = int.Parse(value); break;
                 case "--key-r": config.KeyR = int.Parse(value); break;
                 case "--key-g": config.KeyG = int.Parse(value); break;
                 case "--key-b": config.KeyB = int.Parse(value); break;
@@ -143,7 +150,8 @@ public static class ProcessGeneratedCharacterSpritesheet
         return "Usage: process-generated-character-spritesheet.exe --input <source.png> --output <atlas.png> " +
             "[--transparent <transparent.png>] [--validation <validation.png>] [--cols 4] [--rows 4] " +
             "[--frame-width 48] [--frame-height 64] [--max-width 43] [--max-height 60] [--min-area 500] " +
-            "[--key-r 0] [--key-g 255] [--key-b 0] [--transparent-threshold 70] [--opaque-threshold 180] [--despill true]";
+            "[--warning-margin 4] [--key-r 0] [--key-g 255] [--key-b 0] " +
+            "[--transparent-threshold 70] [--opaque-threshold 180] [--despill true]";
     }
 
     private static bool ParseBool(string value)
@@ -295,14 +303,83 @@ public static class ProcessGeneratedCharacterSpritesheet
         return ordered;
     }
 
+    private static void AddWarnings(Bitmap image, List<SpriteBox> ordered, List<SpriteBox> allBoxes, Config config)
+    {
+        var cellW = image.Width / config.Columns;
+        var cellH = image.Height / config.Rows;
+        var componentsByCell = allBoxes
+            .GroupBy(box =>
+            {
+                var col = Math.Max(0, Math.Min(config.Columns - 1, (int)(box.CenterX / cellW)));
+                var row = Math.Max(0, Math.Min(config.Rows - 1, (int)(box.CenterY / cellH)));
+                return row * config.Columns + col;
+            })
+            .ToDictionary(group => group.Key, group => group.ToList());
+
+        for (var i = 0; i < ordered.Count; i++)
+        {
+            var box = ordered[i];
+            var cell = GetCell(image, i, config);
+            var bounds = box.Padded(image.Width, image.Height, 3);
+            var warnings = GetWarnings(image, cell, bounds, box, componentsByCell, config);
+            box.Warnings.AddRange(warnings);
+        }
+    }
+
+    private static Rectangle GetCell(Bitmap image, int index, Config config)
+    {
+        var cellW = image.Width / config.Columns;
+        var cellH = image.Height / config.Rows;
+        var col = index % config.Columns;
+        var row = index / config.Columns;
+        return new Rectangle(col * cellW, row * cellH, cellW, cellH);
+    }
+
+    private static List<string> GetWarnings(Bitmap image, Rectangle cell, Rectangle bounds, SpriteBox box, Dictionary<int, List<SpriteBox>> componentsByCell, Config config)
+    {
+        var warnings = new List<string>();
+        var margin = config.WarningMargin;
+        var spillMargin = Math.Max(config.WarningMargin, 18);
+        var cellW = image.Width / config.Columns;
+        var cellH = image.Height / config.Rows;
+        var col = Math.Max(0, Math.Min(config.Columns - 1, (int)(box.CenterX / cellW)));
+        var row = Math.Max(0, Math.Min(config.Rows - 1, (int)(box.CenterY / cellH)));
+        var cellIndex = row * config.Columns + col;
+
+        List<SpriteBox> components;
+        if (componentsByCell.TryGetValue(cellIndex, out components) && components.Count > 1)
+            warnings.Add("multiple-components");
+
+        if (bounds.Left <= margin || bounds.Top <= margin || bounds.Right >= image.Width - margin || bounds.Bottom >= image.Height - margin)
+            warnings.Add("image-edge");
+
+        if (bounds.Left < cell.Left - spillMargin || bounds.Top < cell.Top - spillMargin || bounds.Right > cell.Right + spillMargin || bounds.Bottom > cell.Bottom + spillMargin)
+            warnings.Add("cell-spill");
+
+        return warnings;
+    }
+
+    private static void PrintWarnings(List<SpriteBox> boxes)
+    {
+        for (var i = 0; i < boxes.Count; i++)
+        {
+            if (boxes[i].Warnings.Count > 0)
+                Console.Error.WriteLine("warning sprite " + (i + 1) + ": " + string.Join(", ", boxes[i].Warnings.ToArray()));
+        }
+    }
+
     private static void SaveValidationImage(Bitmap transparent, List<SpriteBox> boxes, string validationPath)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(validationPath)));
         using (var validation = new Bitmap(transparent.Width, transparent.Height, PixelFormat.Format32bppArgb))
         using (var g = Graphics.FromImage(validation))
         using (var pen = new Pen(Color.Red, 4))
+        using (var warningPen = new Pen(Color.FromArgb(255, 255, 20, 20), 8))
         using (var font = new Font(FontFamily.GenericSansSerif, 28, FontStyle.Bold))
+        using (var warningFont = new Font(FontFamily.GenericSansSerif, 18, FontStyle.Bold))
         using (var brush = new SolidBrush(Color.Red))
+        using (var warningBrush = new SolidBrush(Color.FromArgb(245, 255, 50, 50)))
+        using (var shadow = new SolidBrush(Color.FromArgb(180, 0, 0, 0)))
         {
             g.Clear(Color.FromArgb(255, 0, 255, 0));
             g.DrawImage(transparent, 0, 0);
@@ -311,7 +388,16 @@ public static class ProcessGeneratedCharacterSpritesheet
             {
                 var box = boxes[i].Padded(transparent.Width, transparent.Height, 3);
                 g.DrawRectangle(pen, box);
+                if (boxes[i].Warnings.Count > 0)
+                    g.DrawRectangle(warningPen, box);
                 g.DrawString((i + 1).ToString(), font, brush, box.Left + 4, box.Top + 4);
+                if (boxes[i].Warnings.Count > 0)
+                {
+                    var warning = "WARN " + string.Join(" ", boxes[i].Warnings.ToArray());
+                    var warningPoint = new PointF(box.Left + 4, box.Top + 36);
+                    g.DrawString(warning, warningFont, shadow, warningPoint.X + 2, warningPoint.Y + 2);
+                    g.DrawString(warning, warningFont, warningBrush, warningPoint);
+                }
             }
 
             validation.Save(validationPath, ImageFormat.Png);
